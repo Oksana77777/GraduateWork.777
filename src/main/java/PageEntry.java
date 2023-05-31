@@ -11,18 +11,34 @@ public class PageEntry implements Comparable<PageEntry> {
 
     @Override
     public int compareTo(PageEntry o) {
-        int result = o.count - this.count;
-        if (result == 0) {
-            result = this.pdfName.compareTo(o.pdfName);
-            if (result == 0) {
-                result = this.page - o.page;
-            }
+        if (this.count < o.count) {
+            return 1;
+        } else if (this.count > o.count) {
+            return -1;
         }
+        return 0;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) return false;
+        PageEntry that = (PageEntry) obj;
+        if (pdfName != that.pdfName) return  false;
+        if (page != that.page) return false;
+        if (count != that.count) return false;
+        return this == obj;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = pdfName == null ? 0 : pdfName.hashCode();
+        result = 31 * result + page;
+        result = 31 * result + count;
         return result;
     }
 
     @Override
     public String toString() {
-        return "pdf= " + pdfName + " page= " + page + " count= " + count;
+        return "PageEntry{pdf=" + pdfName + ", page=" + page + ", count=" + count + "}";
     }
 }

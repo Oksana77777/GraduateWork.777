@@ -1,4 +1,5 @@
 import com.itextpdf.kernel.pdf.PdfDocument;
+import com.itextpdf.kernel.pdf.PdfPage;
 import com.itextpdf.kernel.pdf.PdfReader;
 import com.itextpdf.kernel.pdf.canvas.parser.PdfTextExtractor;
 
@@ -6,45 +7,29 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
-
 public class BooleanSearchEngine implements SearchEngine {
-    protected static Map<String, List<PageEntry>> wordIndexingStorage;
+    List<IndexedWord> indexedWordsPerPage;
 
-    public BooleanSearchEngine() throws IOException {
-        wordIndexingStorage = IndexedStorage.getIndexedStorage().getStorage();
-
-        File[] arrOfPdfs = new File("pdfs").listFiles();
-
-        for (int i = 0; i < Objects.requireNonNull(arrOfPdfs).length; i++) {
-            var doc = new PdfDocument(new PdfReader(arrOfPdfs[i]));
-
-            for (int j = 0; j < doc.getNumberOfPages(); j++) {
-                var file = doc.getPage(j + 1);
-                var text = PdfTextExtractor.getTextFromPage(file);
-
-                String[] words = text.split("\\P{IsAlphabetic}+");
-
-                Map<String, Integer> freqs = new HashMap<>();
-                for (var word : words) {
-                    if (word.isEmpty()) {
-                        continue;
+    public BooleanSearchEngine(File pdfsDir) throws IOException {
+        indexedWordsPerPage = new ArrayList<>();
+        List<File> filesFolder = List.of(Objects.requireNonNull(pdfsDir.listFiles()));
+        for (File pathToFile : filesFolder) {
+            try (var doc = new PdfDocument(new PdfReader(pathToFile));) {
+                int numberOfPages = doc.getNumberOfPages();
+                for (int i = 1; i <= numberOfPages; i++) {
+                    Map<String, Integer> freqs = new HashMap<>();
+                    PdfPage pageDocument = doc.getPage(i);
+                    var text = PdfTextExtractor.getTextFromPage(pageDocument);
+                    String[] words = text.split("\\P{IsAlphabetic}+");
+                    for (var word : words) {
+                        if (word.isEmpty()) continue;
+                        word = word.toLowerCase();
+                        freqs.put(word, freqs.getOrDefault(word, 0) + 1);
                     }
-                    freqs.put(word.toLowerCase(), freqs.getOrDefault(word, 0) + 1);
-                }
-
-                String namePDFFile = doc.getDocumentInfo().getTitle();
-
-                for (Map.Entry<String, Integer> entry : freqs.entrySet()) {
-                    String tmpWord = entry.getKey();
-                    int tmpValue = entry.getValue();
-
-                    List<PageEntry> listPageTmp = new ArrayList<>();
-                    listPageTmp.add(new PageEntry(namePDFFile, j + 1, tmpValue));
-
-                    if (wordIndexingStorage.containsKey(tmpWord)) {
-                        wordIndexingStorage.get(tmpWord).add(new PageEntry(namePDFFile, j + 1, tmpValue));
-                    } else
-                        wordIndexingStorage.put(tmpWord, listPageTmp);
+                    for (Map.Entry<String, Integer> wordFreqs : freqs.entrySet()) {
+                        indexedWordsPerPage.add(new IndexedWord(wordFreqs.getKey(), pathToFile.getName(), i,
+                                wordFreqs.getValue()));
+                    }
                 }
             }
         }
@@ -52,10 +37,16 @@ public class BooleanSearchEngine implements SearchEngine {
 
     @Override
     public List<PageEntry> search(String word) {
-        String wordToLowReg = word.toLowerCase();
-        List<PageEntry> pageEntries = wordIndexingStorage.getOrDefault(wordToLowReg, Collections.emptyList());
-
-        Collections.sort(pageEntries);
-        return pageEntries;
+        List<PageEntry> wordSearchResult = new ArrayList<>();
+        for (IndexedWord indexedWord : indexedWordsPerPage) {
+            if (indexedWord.getWord().equals(word)) {
+                wordSearchResult.add(new PageEntry(
+                        indexedWord.getPdfName(),
+                        indexedWord.getPage(),
+                        indexedWord.getCount()));
+            }
+        }
+        Collections.sort(wordSearchResult);
+        return wordSearchResult;
     }
 }
